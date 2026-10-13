@@ -1,30 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
+from app.routers import runner
 
-app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
+app = FastAPI(title="AlgoLab Backend Engine")
 
+# CORS middleware for React connection
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "service": settings.PROJECT_NAME,
-        "cors_allowed": settings.cors_origins_list
-    }
+# Register the router
+app.include_router(runner.router)
 
-@app.get(f"{settings.API_V1_STR}")
-def api_root():
-    return {"message": "Welcome to the AI-Powered CS Learning Platform API"}
+@app.get("/")
+def root():
+    return {"status": "AlgoLab Backend is running"}
