@@ -1,15 +1,18 @@
+from fastapi import APIRouter, HTTPException
+from app.schemas.runner_schemas import CodeExecutionRequest
+from app.services.compiler import execute_python_code, execute_cpp_code
 
-from fastapi import APIRouter
-from app.schemas.runner_schemas import CodeExecutionRequest, CodeExecutionResponse
-from app.services.compiler import run_user_code
+router = APIRouter(prefix="/runner", tags=["Code Runner"])
 
-router = APIRouter(prefix="/api/runner", tags=["Code Runner"])
+@router.post("/execute")
+def execute_code(request: CodeExecutionRequest):
+    lang = request.language.lower()
+    
+    if lang == "python":
+        output = execute_python_code(request.code)
+    elif lang in ["cpp", "c++"]:
+        output = execute_cpp_code(request.code)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {request.language}")
 
-@router.post("/execute", response_model=CodeExecutionResponse)
-def execute_code(payload: CodeExecutionRequest):
-    status, output, elapsed = run_user_code(payload.language, payload.code)
-    return CodeExecutionResponse(
-        status=status,
-        output=output,
-        execution_time_ms=elapsed
-    )
+    return {"status": "success", "output": output}

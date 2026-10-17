@@ -1,19 +1,20 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Union
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "AI-Powered CS Platform"
+    PROJECT_NAME: str = "AI-Powered CS Learning Platform"
     API_V1_STR: str = "/api"
-    SECRET_KEY: str = "supersecretjwtkeychangeinproduction"
+    SECRET_KEY: str = "super_secret_jwt_key_change_in_production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     DATABASE_URL: str = "sqlite:///./platform.db"
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
-    GEMINI_API_KEY: str = ""
+    BACKEND_CORS_ORIGINS: Union[str, List[str]] = "http://localhost:5173"
 
     @property
     def cors_origins_list(self) -> List[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        if isinstance(self.BACKEND_CORS_ORIGINS, str):
+            return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
+        return self.BACKEND_CORS_ORIGINS
 
     class Config:
         env_file = ".env"
