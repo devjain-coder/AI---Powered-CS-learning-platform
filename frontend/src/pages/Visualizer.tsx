@@ -8,9 +8,12 @@ import {
   Sparkles,
   Zap,
   HelpCircle,
-  ArrowRight,
+  Volume2,
+  VolumeX,
   Gauge,
+  ArrowRight
 } from 'lucide-react';
+import { soundEngine } from '../utils/audio';
 
 type Language = 'cpp' | 'java' | 'python' | 'javascript';
 type AlgorithmKey = 'bubble' | 'selection' | 'insertion' | 'binarySearch';
@@ -666,7 +669,15 @@ export const Visualizer = () => {
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(1.0);
   const [hoveredLineNum, setHoveredLineNum] = useState<number | null>(null);
 
+  // Audio Sonification Toggle State
+  const [soundOn, setSoundOn] = useState<boolean>(true);
+
   const timerRef = useRef<number | null>(null);
+
+  const toggleSound = () => {
+    soundEngine.enabled = !soundOn;
+    setSoundOn(!soundOn);
+  };
 
   // Generate Frames on Algorithm or Array Change
   useEffect(() => {
@@ -686,6 +697,31 @@ export const Visualizer = () => {
     setCurrentFrameIdx(0);
     setIsPlaying(false);
   }, [initialArray, selectedAlgo]);
+
+  // Real-time Sound Trigger on Frame Change
+  useEffect(() => {
+    if (!soundOn || !frames || frames.length === 0 || currentFrameIdx < 0) return;
+
+    const frame = frames[currentFrameIdx];
+    if (!frame) return;
+
+    const currentArray = frame.array || [];
+    if (currentArray.length === 0) return;
+
+    const minVal = Math.min(...currentArray);
+    const maxVal = Math.max(...currentArray);
+
+    if (frame.comparing && frame.comparing.length > 0) {
+      const val = currentArray[frame.comparing[0]];
+      if (val !== undefined) soundEngine.playTone(val, minVal, maxVal, 'sine');
+    } else if (frame.swapped && frame.swapped.length > 0) {
+      const val = currentArray[frame.swapped[0]];
+      if (val !== undefined) soundEngine.playTone(val, minVal, maxVal, 'triangle');
+    } else if (frame.sorted && frame.sorted.length > 0) {
+      const val = currentArray[frame.sorted[0]] || maxVal;
+      soundEngine.playTone(val, minVal, maxVal, 'square');
+    }
+  }, [currentFrameIdx, soundOn, frames]);
 
   // Handle Playback Interval using Speed Multiplier
   useEffect(() => {
@@ -864,7 +900,7 @@ export const Visualizer = () => {
                   if (currentFrameIdx >= frames.length - 1) setCurrentFrameIdx(0);
                   setIsPlaying(!isPlaying);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1E4D40] hover:bg-[#163930] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold transition shadow-xs"
+                className="flex items-center gap-2 px-4 py-2 bg-[#1E4D40] hover:bg-[#163930] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold transition shadow-xs cursor-pointer"
               >
                 {isPlaying ? <Pause size={15} /> : <Play size={15} fill="currentColor" />}
                 <span>{isPlaying ? 'Pause' : 'Play'}</span>
@@ -873,7 +909,7 @@ export const Visualizer = () => {
               <button
                 disabled={currentFrameIdx === 0 || isPlaying}
                 onClick={() => setCurrentFrameIdx((prev) => Math.max(0, prev - 1))}
-                className="p-2 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#ECEAE2] text-[#2D3748] dark:text-slate-200 border border-[#ECEAE0] dark:border-slate-700 rounded-xl disabled:opacity-40 transition"
+                className="p-2 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#ECEAE2] text-[#2D3748] dark:text-slate-200 border border-[#ECEAE0] dark:border-slate-700 rounded-xl disabled:opacity-40 transition cursor-pointer"
                 title="Step Backward"
               >
                 <SkipBack size={16} />
@@ -882,7 +918,7 @@ export const Visualizer = () => {
               <button
                 disabled={currentFrameIdx >= frames.length - 1 || isPlaying}
                 onClick={() => setCurrentFrameIdx((prev) => Math.min(frames.length - 1, prev + 1))}
-                className="p-2 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#ECEAE2] text-[#2D3748] dark:text-slate-200 border border-[#ECEAE0] dark:border-slate-700 rounded-xl disabled:opacity-40 transition"
+                className="p-2 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#ECEAE2] text-[#2D3748] dark:text-slate-200 border border-[#ECEAE0] dark:border-slate-700 rounded-xl disabled:opacity-40 transition cursor-pointer"
                 title="Step Forward"
               >
                 <SkipForward size={16} />
@@ -893,31 +929,46 @@ export const Visualizer = () => {
                   setIsPlaying(false);
                   setCurrentFrameIdx(0);
                 }}
-                className="p-2 text-[#64748B] hover:text-[#1E293B] dark:hover:text-slate-200 rounded-xl transition"
+                className="p-2 text-[#64748B] hover:text-[#1E293B] dark:hover:text-slate-200 rounded-xl transition cursor-pointer"
                 title="Reset Animation"
               >
                 <RotateCcw size={16} />
               </button>
             </div>
 
-            {/* Speed Range Slider (0.25x to 2.0x) */}
-            <div className="flex items-center gap-3 bg-[#FAF8F3] dark:bg-slate-800 px-3.5 py-1.5 rounded-2xl border border-[#ECEAE0] dark:border-slate-700">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-[#64748B] dark:text-slate-400">
-                <Gauge size={14} className="text-[#1E4D40] dark:text-emerald-400" />
-                <span>Speed:</span>
-                <span className="font-mono text-[#1E4D40] dark:text-emerald-300 font-extrabold w-10 text-right">
-                  {speedMultiplier.toFixed(2)}x
-                </span>
+            {/* Speed Range Slider (0.25x to 2.0x) + Audio Toggle Button */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 bg-[#FAF8F3] dark:bg-slate-800 px-3.5 py-1.5 rounded-2xl border border-[#ECEAE0] dark:border-slate-700">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#64748B] dark:text-slate-400">
+                  <Gauge size={14} className="text-[#1E4D40] dark:text-emerald-400" />
+                  <span>Speed:</span>
+                  <span className="font-mono text-[#1E4D40] dark:text-emerald-300 font-extrabold w-10 text-right">
+                    {speedMultiplier.toFixed(2)}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="2.0"
+                  step="0.25"
+                  value={speedMultiplier}
+                  onChange={(e) => setSpeedMultiplier(parseFloat(e.target.value))}
+                  className="w-24 accent-[#1E4D40] dark:accent-emerald-500 cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                min="0.25"
-                max="2.0"
-                step="0.25"
-                value={speedMultiplier}
-                onChange={(e) => setSpeedMultiplier(parseFloat(e.target.value))}
-                className="w-24 accent-[#1E4D40] dark:accent-emerald-500 cursor-pointer"
-              />
+
+              {/* Web Audio Sonification Toggle */}
+              <button
+                onClick={toggleSound}
+                className="p-2.5 rounded-2xl bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#ECEAE2] dark:hover:bg-slate-700 border border-[#ECEAE0] dark:border-slate-700 text-[#2D3748] dark:text-slate-200 transition-colors cursor-pointer"
+                title={soundOn ? 'Mute Sonification' : 'Enable Sonification'}
+              >
+                {soundOn ? (
+                  <Volume2 size={16} className="text-[#1E4D40] dark:text-emerald-400" />
+                ) : (
+                  <VolumeX size={16} className="text-gray-400" />
+                )}
+              </button>
             </div>
 
             {/* Array Customization */}
@@ -931,13 +982,13 @@ export const Visualizer = () => {
               />
               <button
                 onClick={handleApplyCustomArray}
-                className="px-2.5 py-1.5 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#EFECE1] border border-[#ECEAE0] dark:border-slate-700 rounded-xl text-xs font-bold text-[#1E293B] dark:text-slate-200"
+                className="px-2.5 py-1.5 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#EFECE1] border border-[#ECEAE0] dark:border-slate-700 rounded-xl text-xs font-bold text-[#1E293B] dark:text-slate-200 cursor-pointer"
               >
                 Set
               </button>
               <button
                 onClick={handleRandomize}
-                className="px-2.5 py-1.5 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#EFECE1] border border-[#ECEAE0] dark:border-slate-700 rounded-xl text-xs font-bold text-[#1E293B] dark:text-slate-200"
+                className="px-2.5 py-1.5 bg-[#FAF8F3] dark:bg-slate-800 hover:bg-[#EFECE1] border border-[#ECEAE0] dark:border-slate-700 rounded-xl text-xs font-bold text-[#1E293B] dark:text-slate-200 cursor-pointer"
               >
                 Random
               </button>

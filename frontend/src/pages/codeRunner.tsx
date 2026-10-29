@@ -105,15 +105,19 @@ export const CodeRunner: React.FC = () => {
     }
   };
 
-  const handleRunCode = async () => {
+const handleRunCode = async () => {
     setIsRunning(true);
     setOutputTerminal('Compiling and executing...');
 
-    // Calls your FastAPI backend runner endpoint
     try {
       const response = await fetch('http://localhost:8000/api/runner/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token')
+            ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            : {}),
+        },
         body: JSON.stringify({
           language,
           code: sourceCode,
@@ -121,25 +125,21 @@ export const CodeRunner: React.FC = () => {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Execution failed');
+        throw new Error(data.detail || 'Execution failed on server.');
       }
 
-      const data = await response.json();
       setOutputTerminal(data.output || 'Execution complete with no output.');
-    } catch {
-      // Local fallback simulation when backend runner is not yet active
-      setTimeout(() => {
-        setOutputTerminal(
-          `[Success]: Process executed with return code 0.\nOutput:\nWelcome to ${language.toUpperCase()} execution!\n(FastAPI runner endpoint connection ready).`
-        );
-        setIsRunning(false);
-      }, 700);
-      return;
+    } catch (error: any) {
+      setOutputTerminal(
+        `[Error]: ${error.message || 'Failed to connect to backend server at http://localhost:8000.'}`
+      );
+    } finally {
+      setIsRunning(false);
     }
-    setIsRunning(false);
   };
-
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-950 text-slate-100">
       {/* Top Action Bar */}
